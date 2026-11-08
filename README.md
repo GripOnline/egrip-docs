@@ -9,6 +9,18 @@ client implementation can carry an up-to-date copy of the docs as a (dev) depend
 | Document | Description |
 |---|---|
 | [docs/upgrade-egrip3-to-egrip4.md](docs/upgrade-egrip3-to-egrip4.md) | Upgrading an e-Grip 3.x client branch to e-Grip 4.0 (also usable as instructions for AI coding agents) |
+| [docs/developers-guide.md](docs/developers-guide.md) | **Developer's guide** (index of the chapters below): how the e-Grip 4 framework works |
+| [docs/developers-guide/application-framework.md](docs/developers-guide/application-framework.md) | Developer's guide 1: application framework and the `Context` object |
+| [docs/developers-guide/plugins-and-events.md](docs/developers-guide/plugins-and-events.md) | Developer's guide 2: `PluginManager` and `EventDispatcher` |
+| [docs/developers-guide/routing-and-modules.md](docs/developers-guide/routing-and-modules.md) | Developer's guide 3: `RouteRegistry` and `ModuleRegistry` |
+| [docs/developers-guide/entities.md](docs/developers-guide/entities.md) | Developer's guide 4: `EntityFinder` and `EntityManager` |
+| [docs/developers-guide/core-services.md](docs/developers-guide/core-services.md) | Developer's guide 5: database, storage, mail, services, filters, key-value stores |
+| [docs/developers-guide/cms-engine.md](docs/developers-guide/cms-engine.md) | Developer's guide 6: CMS engine, content types and Twig renderer functions |
+| [docs/developers-guide/module-exceptions.md](docs/developers-guide/module-exceptions.md) | Developer's guide 7: module exceptions in a client branch |
+| [docs/developers-guide/database-updates.md](docs/developers-guide/database-updates.md) | Developer's guide 8: database updates and the schema manager |
+| [docs/developers-guide/command-line-scripts.md](docs/developers-guide/command-line-scripts.md) | Developer's guide 9: command line scripts |
+| [docs/developers-guide/working-on-plugins-and-libraries.md](docs/developers-guide/working-on-plugins-and-libraries.md) | Developer's guide 10: working on plugins and Composer libraries |
+| [docs/developers-guide/new-site.md](docs/developers-guide/new-site.md) | Developer's guide 11: setting up a new site |
 
 ## Installing in a client implementation
 

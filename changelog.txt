@@ -2,6 +2,8 @@
  NEXT VERSION
 ---------------------------------------------
 
+- add the e-Grip 4 developer's guide (docs/developers-guide.md and docs/developers-guide/), translated and made generic from the internal guide
+
 ---------------------------------------------
  Release: egrip4-docs-1.0.0
  Date:    2026-11-08
