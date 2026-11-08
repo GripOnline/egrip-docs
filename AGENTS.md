@@ -1,7 +1,7 @@
 # Instructions for AI coding agents
 
 This repository holds **generic** e-Grip 4 documentation in Markdown. It is public and is distributed as
-the Composer package `grip/egrip4-docs`.
+the Composer package `grip/egrip-docs`.
 
 ## Rules for changing this repository
 
@@ -22,6 +22,6 @@ the Composer package `grip/egrip4-docs`.
 ## Using these docs from a client implementation
 
 When this package is installed in a client implementation, the docs are in
-`vendor/grip/egrip4-docs/docs/`. Read the document that matches the task (for example
+`vendor/grip/egrip-docs/docs/`. Read the document that matches the task (for example
 `upgrade-egrip3-to-egrip4.md` for a 3.x → 4.0 upgrade) before making changes, and follow it.
 Write client-specific findings and plans in the client repository, never in this package.

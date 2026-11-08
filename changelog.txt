@@ -4,6 +4,7 @@
 
 - add the e-Grip 4 developer's guide (docs/developers-guide.md and docs/developers-guide/), translated and made generic from the internal guide
 - README: refer to the public egrip-demo implementation, clearer installation and update instructions
+- rename the repository to GripOnline/egrip-docs and the Composer package to grip/egrip-docs (was grip/egrip4-docs); installed copies move to vendor/grip/egrip-docs/docs/
 
 ---------------------------------------------
  Release: egrip4-docs-1.0.0

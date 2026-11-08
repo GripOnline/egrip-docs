@@ -39,7 +39,7 @@ package to `composer.json`:
         { "type": "composer", "url": "https://composer.hosting.grip.nl/" }
     ],
     "require-dev": {
-        "grip/egrip4-docs": "*"
+        "grip/egrip-docs": "*"
     }
 }
 ```
@@ -47,21 +47,21 @@ package to `composer.json`:
 or, once the channel is configured, run:
 
 ```bash
-composer require --dev grip/egrip4-docs
+composer require --dev grip/egrip-docs
 ```
 
-After `composer update` the docs are available in `vendor/grip/egrip4-docs/docs/`. Start with
+After `composer update` the docs are available in `vendor/grip/egrip-docs/docs/`. Start with
 [docs/developers-guide.md](docs/developers-guide.md) for how the framework works, or with the document for the task
 at hand. To get the latest version of the docs later on, run:
 
 ```bash
-composer update grip/egrip4-docs
+composer update grip/egrip-docs
 ```
 
 Point people and agents there, for instance from the client's own `AGENTS.md`:
 
 ```markdown
-Generic e-Grip 4 documentation is installed in vendor/grip/egrip4-docs/docs/. Read the relevant
+Generic e-Grip 4 documentation is installed in vendor/grip/egrip-docs/docs/. Read the relevant
 document there before changing the platform setup of this implementation.
 ```
 

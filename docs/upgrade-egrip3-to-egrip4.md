@@ -18,7 +18,7 @@ Placeholders: `<site>` (lowercase site name, e.g. used in `egrip-<site>`), `<Sit
 Give the agent access to the client branch (`egrip-<site>`), its style package (`egrip-style-<site>`), the
 `egrip3` and `egrip4` reference repositories, and this package. Then use prompts like:
 
-> Read `vendor/grip/egrip4-docs/docs/upgrade-egrip3-to-egrip4.md`. Do **Phase 0 (analysis)** for
+> Read `vendor/grip/egrip-docs/docs/upgrade-egrip3-to-egrip4.md`. Do **Phase 0 (analysis)** for
 > `egrip-<site>` and write the resulting plan to a Markdown file in the client repository (or another internal
 > location). Do not modify the client branch yet.
 
