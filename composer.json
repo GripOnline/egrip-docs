@@ -1,0 +1,7 @@
+{
+    "name": "grip/egrip4-docs",
+    "description": "Generic e-Grip 4 documentation (Markdown)",
+    "type": "library",
+    "license": "proprietary",
+    "require": {}
+}
