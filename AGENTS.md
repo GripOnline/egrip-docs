@@ -11,9 +11,11 @@ the Composer package `grip/egrip4-docs`.
    `<Site>`, `<MODULE>`, `egrip-<site>`.
 2. **Public repository.** Never add secrets, passwords, DSNs, API keys, tokens, personal data or
    e-mail addresses, and no internal infrastructure details beyond what is already public.
-3. **Markdown only.** Documents live in `docs/`, one topic per file, written in English. Code that readers
+3. **Markdown only.** Apart from the package files (`composer.json`, `changelog.txt`, the release workflow), the
+   repository only contains Markdown. Documents live in `docs/`, one topic per file, written in English. Code that readers
    need (templates, small scripts, commands) goes in fenced code blocks inside the documents.
 4. Keep [README.md](README.md) up to date: every document in `docs/` is listed in its contents table.
+   Add a line for every change under `NEXT VERSION` in `changelog.txt`.
 5. State facts you verified against the platform code (package names, class names, event names,
    versions) precisely, and mark anything that is not verified as such.
 
