@@ -22,9 +22,16 @@ client implementation can carry an up-to-date copy of the docs as a (dev) depend
 | [docs/developers-guide/working-on-plugins-and-libraries.md](docs/developers-guide/working-on-plugins-and-libraries.md) | Developer's guide 10: working on plugins and Composer libraries |
 | [docs/developers-guide/new-site.md](docs/developers-guide/new-site.md) | Developer's guide 11: setting up a new site |
 
+## Example implementation
+
+[GripOnline/egrip-demo](https://github.com/GripOnline/egrip-demo) is a public, minimal e-Grip 4 site. It already has
+this package as a `require-dev` dependency, so it is a good place to see how the docs are installed and to try out
+what they describe.
+
 ## Installing in a client implementation
 
-The package is published on the Grip Composer channel:
+The package is published on the Grip Composer channel. Add the channel (if the project does not have it yet) and the
+package to `composer.json`:
 
 ```json
 {
@@ -37,7 +44,20 @@ The package is published on the Grip Composer channel:
 }
 ```
 
-After `composer update` the docs are available in `vendor/grip/egrip4-docs/docs/`.
+or, once the channel is configured, run:
+
+```bash
+composer require --dev grip/egrip4-docs
+```
+
+After `composer update` the docs are available in `vendor/grip/egrip4-docs/docs/`. Start with
+[docs/developers-guide.md](docs/developers-guide.md) for how the framework works, or with the document for the task
+at hand. To get the latest version of the docs later on, run:
+
+```bash
+composer update grip/egrip4-docs
+```
+
 Point people and agents there, for instance from the client's own `AGENTS.md`:
 
 ```markdown

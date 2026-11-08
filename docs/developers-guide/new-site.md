@@ -22,6 +22,8 @@ are created there) are internal and not described here.
 
 4. Copy the files of the `egrip4` reference repository into the new directory (for example by downloading it as a
    ZIP archive and extracting it there).
+   The public [egrip-demo](https://github.com/GripOnline/egrip-demo) repository shows what a minimal e-Grip 4 site
+   consists of.
 5. Update the branch name in `vwm_config.xml` and `composer.json` to the new branch name.
 6. Commit these files to the new repository.
 
