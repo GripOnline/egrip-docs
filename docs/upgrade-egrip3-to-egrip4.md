@@ -232,37 +232,27 @@ php egrip-<site>/vendor/grip/vwm-legacy-site/bin/cleanup-branch.php /tmp/dry/<si
   removes identical nodes from `actions.xml` and language files, cleans `dataobjects.ini` and removes empty dirs.
 * Use `vwm-legacy-site` ≥ 1.47.0, the first version with merge support.
 
+The tools used in this phase are part of `grip/vwm-legacy-site`, which every 3.x and 4.0 project already
+has installed. Apart from `cleanup-branch.php` they are read-only:
+
+| Tool | Since | Purpose |
+|---|---|---|
+| `bin/cleanup-branch.php` | earlier versions | removes code and configuration that is identical to the standard (this step; modifies the branch) |
+| `bin/classify-remaining.php` | 1.64.0 | finds stale copies of standard files (2.4) |
+| `bin/audit-branch.php` | 1.64.0 | finds what breaks in 4.0 (2.5) |
+| `bin/compare-dataobjects-ini.php` | 1.64.0 | checks a `dataobjects.ini` against the schema plugin (2.5) |
+
+From 1.64.0 they are also linked in `vendor/bin/`.
+
 ### 2.4 Classify what is left
 
 `cleanup-branch.php` only removes files that are identical to the reference. A file that is an **older,
 unmodified** copy of a standard file survives. In 4.0 such a file would shadow the newer standard implementation.
-The script below compares every remaining file with all historic egrip3 revisions:
+`classify-remaining.php` compares every remaining file in `include/` with all historic egrip3 revisions
+(ignoring whitespace and `$Id$` lines). It needs `git` and an egrip3 checkout with tags:
 
 ```bash
-#!/bin/bash
-# classify-remaining.sh <egrip3-git-repo> <branch-root> [<reference-tag>]
-set -u
-E3=$1; BR=${2%/}; REF=${3:-HEAD}
-norm() { sed -E '/\$Id[:$]/d; s/[[:space:]]+//g' | grep -v '^$'; }
-cd "$BR" || exit 1
-find include -type f | sort | while read -r f; do
-    case "$f" in include/vwm/modules/*) ;; *) echo "SITE          $f"; continue ;; esac
-    mod=$(echo "$f" | cut -d/ -f4)
-    if [ -z "$(git -C "$E3" log --all --format=%H -1 -- "include/vwm/modules/$mod")" ]; then
-        echo "CUSTOMMODULE  $f"; continue
-    fi
-    case "$f" in *.xml|*.ini) echo "CONFIG        $f"; continue ;; esac
-    commits=$(git -C "$E3" log --all --format=%H -- "$f")
-    if [ -z "$commits" ]; then echo "NEW           $f"; continue; fi
-    mine=$(norm < "$f" | md5sum); hit=""
-    for c in $commits; do
-        if [ "$mine" = "$(git -C "$E3" show "$c:$f" 2>/dev/null | norm | md5sum)" ]; then
-            hit=$(git -C "$E3" log -1 --format='%h %ad' --date=short "$c"); break
-        fi
-    done
-    if [ -n "$hit" ]; then echo "STOCK         $f (= egrip3 $hit)"
-    else echo "MODIFIED      $f ($(diff <(git -C "$E3" show "$REF:$f" 2>/dev/null) "$f" | grep -c '^[<>]') diff lines vs $REF)"; fi
-done
+php vendor/grip/vwm-legacy-site/bin/classify-remaining.php /path/to/egrip3 /tmp/dry/<site>-dry egrip-3.9
 ```
 
 | Class | Meaning | Action |
@@ -278,62 +268,45 @@ Check `MODIFIED` files that differ in only a few lines. Often the difference is 
 
 ### 2.5 Audit
 
-Run these checks on the cleaned copy **and** on the style package.
-
-**Broken requires.** Find every `require_once dirname(__FILE__) . '...'` / `__DIR__` require and check that the
-target still exists:
+Run the audit on the cleaned copy of the branch. For the style package, which has no `include/` dir, use the
+`grep` commands at the end of this section.
 
 ```bash
-grep -rnE "(require|include)(_once)?\s*\(?\s*dirname" include script src
+php vendor/grip/vwm-legacy-site/bin/audit-branch.php /tmp/dry/<site>-dry
 ```
 
-For a missing `include/vwm/modules/<MODULE>/{actions,views}/<Class>.class.php`, the replacement is
-`Grip\Vwm\LegacySite\Modules\<Mod>\{Action,View}\<Class>` if that file exists in
-`vendor/grip/vwm-legacy-site/src/Modules/`.
+It reports:
 
-**include_path requires** (PEAR style; these do not work, or load a second copy of a library, in 4.0):
+1. **Broken requires:** `require_once dirname(__FILE__) . '...'` / `__DIR__` requires whose target no longer exists.
+   For a missing `include/vwm/modules/<MODULE>/{actions,views}/<Class>.class.php` it names the replacement class
+   `Grip\Vwm\LegacySite\Modules\<Mod>\{Action,View}\<Class>` when that class exists in the installed package.
+2. **include_path requires** (PEAR style, `'VWM/...'`, `'DI/...'`, ...): in 4.0 these fail, or load a second copy of a library.
+3. **`VWM_ModuleConfig::load()` calls**, to be replaced by `VWM_ModuleConfig::getConfig()`.
+4. **Leftover `dataobjects*.ini`** in the config dirs of modules.
+5. **Front controller and legacy html scripts:** whether `html/index.php` only uses the dispatcher, and every PHP
+   file in `html/` other than `index.php`, `vwm/index.php`, `vwm/popup/index.php` and `vwm/stats/index.php`.
+6. **Module config files with `mode="merge"` nodes** (1.3), to be reviewed and tested.
+
+Compare each leftover `dataobjects.ini` with the schema plugin's file (`plugins/<mod>-schema/config/`; the `Auth`
+tables are in `vwm-schema`). No output (exit code 0) means the branch file is fully covered and can be deleted.
+Otherwise the missing definitions belong in the schema plugin:
 
 ```bash
-grep -rnE "(require|include)(_once)?\s*\(?\s*['\"][A-Z][A-Za-z_]*/" include html script src
+php vendor/grip/vwm-legacy-site/bin/compare-dataobjects-ini.php include/vwm/modules/CMS/config/dataobjects.ini plugins/cms-schema/config/dataobjects.ini
 ```
 
-**`VWM_ModuleConfig::load()`:**
+The same checks by hand, for code without `include/` such as a style package:
 
 ```bash
-grep -rn "VWM_ModuleConfig::load(" include html script src
+grep -rnE "(require|include)(_once)?\s*\(?\s*dirname" .
 ```
-
-**Leftover `dataobjects.ini`:**
 
 ```bash
-ls include/vwm/modules/*/config/dataobjects*.ini
+grep -rnE "(require|include)(_once)?\s*\(?\s*['\"][A-Z][A-Za-z_]*/" .
 ```
-
-Compare each one with the schema plugin's file (`plugins/<mod>-schema/config/`). The `Auth` tables are in
-`vwm-schema`. Every section and key of the branch file must exist with the same value in the plugin file. If so,
-delete the branch file. If not, the missing definitions belong in the schema plugin. A quick check:
-
-```php
-<?php // compare-dataobjects-ini.php <branch.ini> <plugin.ini> [<plugin2.ini> ...]
-$branch = parse_ini_file($argv[1], true, INI_SCANNER_RAW);
-$plugin = [];
-foreach (array_slice($argv, 2) as $f) { $plugin += parse_ini_file($f, true, INI_SCANNER_RAW); }
-foreach ($branch as $section => $values) {
-    if (!isset($plugin[$section])) { echo "MISSING [$section]\n"; continue; }
-    foreach ($values as $k => $v) {
-        if (!array_key_exists($k, $plugin[$section])) echo "MISSING [$section] $k\n";
-        elseif ($plugin[$section][$k] != $v) echo "DIFFERENT [$section] $k\n";
-    }
-}
-```
-
-**Legacy html scripts:** every PHP file in `html/` other than `index.php`, `vwm/index.php`, `vwm/popup/index.php`
-and `vwm/stats/index.php`.
-
-**Merge nodes:**
 
 ```bash
-grep -rln 'mode="merge"' include
+grep -rn "VWM_ModuleConfig::load(" .
 ```
 
 ### 2.6 Decide and write the plan
@@ -374,7 +347,7 @@ Against the matching egrip3 tag (2.3).
 The `STOCK` files from 2.4, plus `MODIFIED` files whose differences are trivial.
 
 ### 3.6 Fix broken requires and extends
-Remove the `require_once` and extend the fully-qualified class name instead:
+`audit-branch.php` lists them with the replacement class. Remove the `require_once` and extend the fully-qualified class name instead:
 
 ```php
 <?php
@@ -599,7 +572,7 @@ Existing databases already contain the structure, so the schema plugin updates m
 |---|---|---|
 | Composer constraint `"3.7"` | installs exactly 3.7.0 (cms-schema 3.7.0 has no `dataobjects.ini`/`updates.xml`) | use `"3.7.*"` |
 | Cleanup against egrip3 HEAD instead of the matching tag | fewer files recognised as standard | use the matching tag |
-| Stale stock copies survive the cleanup | old code shadows the 4.0 standard | classify (2.4), delete `STOCK` |
+| Stale stock copies survive the cleanup | old code shadows the 4.0 standard | `classify-remaining.php` (2.4), delete `STOCK` |
 | Case-only differences (`Mail_mime`) | file looks customised | treat as stock |
 | Expecting `vwm-legacy-site` to route the front-end | a PHP-template site is rendered by the Twig `FrontendActionController` | `'/*'` route with prio > 100 in the site plugin |
 | Merge nodes read by an old VWM | forms/tabs show only the delta | run on `pear-vwm` from `vendor/` only (3.8, 3.10) |
