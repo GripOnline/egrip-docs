@@ -41,6 +41,10 @@ document there before changing the platform setup of this implementation.
 * This repository is **public**: never add secrets, internal hostnames that are not already public,
   credentials, API keys or personal data.
 * Write in English, use Markdown, one topic per file in `docs/`, and add every new document to the table above.
-* Releases are tagged with semantic versions (`v1.2.0`); the Composer channel picks up tags.
+* Releasing: set the new `version` in `composer.json`, move the `NEXT VERSION` notes in `changelog.txt` under
+  that version, commit, and push a tag with the same version (`1.0.1` or `v1.0.1`). The
+  [Release workflow](.github/workflows/release.yml) checks that the tag matches `composer.json`, builds the package
+  zip (`docs/`, `AGENTS.md`, `README.md`, `changelog.txt`, `composer.json`) and uploads it to the Composer channel.
+  It uses the organization-wide `COMPOSER_UPLOAD_USER` / `COMPOSER_UPLOAD_PASSWORD` settings.
 
 See [AGENTS.md](AGENTS.md) for the rules that apply to AI coding agents working in this repository.

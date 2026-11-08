@@ -1,0 +1,103 @@
+# Builds the Composer package ZIP and uploads it to the Grip Composer channel
+# whenever a version tag is pushed (e.g. "1.0.1" or "v1.0.1").
+#
+# Required configuration, set once for the whole organization
+# (GitHub organization > Settings > Secrets and variables > Actions):
+#   - variable COMPOSER_UPLOAD_USER      Composer channel user (role "uploader")
+#   - secret   COMPOSER_UPLOAD_PASSWORD  password of that user
+#   - variable COMPOSER_UPLOAD_URL       optional, defaults to https://composer.hosting.grip.nl/admin/
+#
+# Secrets are not passed to workflows triggered from forks, and this workflow
+# only runs for pushed tags, which requires write access to the repository.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+# The GITHUB_TOKEN only needs to read the repository.
+permissions:
+  contents: read
+
+# Never run two releases of the same tag at the same time.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Validate composer.json
+        run: composer validate --no-check-lock
+
+      - name: Check tag matches composer.json version
+        id: meta
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          name="$(jq -r '.name' composer.json)"
+          version="$(jq -r '.version' composer.json)"
+
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match version '${version}' in composer.json"
+            exit 1
+          fi
+
+          echo "zip=build/${name//\//-}-${version}.zip" >> "$GITHUB_OUTPUT"
+
+      # The package contains only the documentation, no build tooling.
+      - name: Build package ZIP
+        env:
+          ZIP: ${{ steps.meta.outputs.zip }}
+        run: |
+          mkdir -p build
+          zip -r -X "$ZIP" docs AGENTS.md README.md changelog.txt composer.json
+          unzip -l "$ZIP"
+
+      - name: Upload to Composer channel
+        env:
+          ZIP: ${{ steps.meta.outputs.zip }}
+          UPLOAD_URL: ${{ vars.COMPOSER_UPLOAD_URL || 'https://composer.hosting.grip.nl/admin/' }}
+          UPLOAD_USER: ${{ vars.COMPOSER_UPLOAD_USER }}
+          UPLOAD_PASSWORD: ${{ secrets.COMPOSER_UPLOAD_PASSWORD }}
+        run: |
+          if [ -z "$UPLOAD_USER" ] || [ -z "$UPLOAD_PASSWORD" ]; then
+            echo "::error::COMPOSER_UPLOAD_USER and/or COMPOSER_UPLOAD_PASSWORD are not configured (organization secrets and variables)"
+            exit 1
+          fi
+
+          # The Authorization header is passed via a file descriptor, so the
+          # credentials do not appear on the command line (process list).
+          auth="$(printf '%s:%s' "$UPLOAD_USER" "$UPLOAD_PASSWORD" | base64 -w0)"
+          echo "::add-mask::$auth"
+
+          status=0
+          response="$(curl --silent --show-error --fail-with-body \
+            --header @<(printf 'Authorization: Basic %s\n' "$auth") \
+            --form "upload=@${ZIP};type=application/zip" \
+            "$UPLOAD_URL")" || status=$?
+
+          echo "$response"
+
+          # Older versions of the channel answer some errors with an empty
+          # 200 response, so also check for the success message.
+          if [ "$status" -ne 0 ] || ! grep -q 'File successfully processed' <<< "$response"; then
+            echo "::error::Upload of $(basename "$ZIP") failed: ${response:-no response}"
+            exit 1
+          fi
+
+      - name: Keep package ZIP as build artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package
+          path: ${{ steps.meta.outputs.zip }}
+          if-no-files-found: error
