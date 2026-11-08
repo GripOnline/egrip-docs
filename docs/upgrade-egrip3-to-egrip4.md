@@ -5,7 +5,8 @@ of the configuration and code as possible in the platform plugins and libraries.
 and as working instructions for AI coding agents.
 
 Moving `include/vwm/modules` to `config/modules` and converting PHP templates to Twig are **out of scope**:
-both can be done later, after the site runs on 4.0.
+both can be done later, after the site runs on 4.0. Until then the PHP templates of the site's style keep working
+through `grip/egrip-plugin-legacy-frontend` (1.1).
 
 Placeholders: `<site>` (lowercase site name, e.g. used in `egrip-<site>`), `<Site>` (PHP namespace segment),
 `<MODULE>` (module name such as `CMS`), `<Mod>` (module namespace segment such as `Cms`).
@@ -70,16 +71,34 @@ The upgrade happens in two phases:
   (`VWM::getInstance()` → `VWM_FrontEndController` → `CMS` / `RequestPage`), so **PHP templates keep working**.
 * **The `egrip-plugin-vwm-legacy-site` plugin does not send all front-end requests to that controller.** It
   only switches the `'/*'` route for `?module=ML&action=ViewMailingHTML` (`Plugin::onRouteResolverInitialized()`).
-  A site with PHP templates must register `'/*'` → `LegacyFrontendActionController` itself, with a prio higher
-  than 100. That is done in the site plugin (section 3.11). With the real `RouteResolver` the result is:
+* **Sites with PHP templates (old, non-Twig styles) require `grip/egrip-plugin-legacy-frontend`** (≥ 1.0.0).
+  On `RouteResolver.initialized` it replaces the controller of the `'/*'` route registered by `cms-frontend`
+  (`FrontendActionController`) with `LegacyFrontendActionController`. All other routes keep their e-Grip 4
+  controllers:
 
   ```
   /                       -> LegacyFrontendActionController
   /some/page/             -> LegacyFrontendActionController
-  /assets/css/style.css   -> FrontendAssetsController       (more specific route still wins)
+  /assets/css/style.css   -> FrontendAssetsController       (more specific route, not affected)
   /vwm/                   -> LegacyBackendActionController
   /robots.txt             -> FrontendRobotsTxtController
   ```
+
+  Without configuration **all** `'/*'` requests go to the legacy controller. Exceptions are configured with
+  `frontend_controller` params in `vwm_config.xml` (globally or per `<environment>`), with the value `legacy` or
+  `default` (the e-Grip 4 Twig controller). The most specific param wins:
+  `frontend_controller[DOMAIN][MODULE][ACTION]`, then module/action params (`frontend_controller[MODULE][ACTION]`,
+  `[MODULE][*]`, `[*][ACTION]`), then `frontend_controller[DOMAIN]`, then `frontend_controller`.
+  Requests without `module`/`action` count as `CMS` / `RequestPage`. This makes it possible to convert a site to
+  Twig gradually, for example per domain:
+
+  ```xml
+  <param name="frontend_controller" value="legacy" />
+  <param name="frontend_controller[<new-domain>]" value="default" />
+  ```
+
+  See the plugin's README for all options. The plugin never switches a route back to the Twig controller, so the
+  `ML` / `ViewMailingHTML` exception of `egrip-plugin-vwm-legacy-site` always stays legacy.
 
 * Physical files in `html/` bypass the dispatcher: the standard `.htaccess` only rewrites requests for files
   that do not exist. Old entry scripts (`html/assets.php`, `html/images/*.php*`, `html/files/*.php5`,
@@ -167,6 +186,8 @@ modules can define their tables in the DataObject class itself (`table()` / `key
   explicitly if the site uses SHOP or PDF output. For SHOP, also require `grip/egrip-plugin-shop-module` and
   `grip/egrip-plugin-shop-schema`.
 * `grip/egrip-style-default_clean` (the demo style of the egrip4 project) is **not** required by client branches.
+* `grip/egrip-plugin-legacy-frontend` (`"*"`) is required by every site that still has PHP templates (1.1). It is not
+  in the egrip4 project's `composer.json`, because that project uses Twig.
 
 ---
 
@@ -331,6 +352,8 @@ Create the branch from `main` (e.g. `upgrade-4.0`). Production hotfixes remain p
 ### 3.2 composer.json
 * Require all plugins from the egrip4 project's `composer.json`, except `grip/egrip-style-default_clean`.
 * Module plugins `"*"`, schema plugins pinned with `.*` (table in 1.5).
+* Add `grip/egrip-plugin-legacy-frontend` when the site's style uses PHP templates (1.1). Without it the
+  front-end is rendered by the Twig `FrontendActionController`, which does not know the old style.
 * Remove `grip/pear-*` requires that are pulled in anyway. Add the ones that are not (`pear-shop`, `pear-tcpdf`) when the site uses them.
 * Add `"psr-4": { "Grip\\": "src/Grip" }` to `autoload` for the site plugin.
 * Run `composer update`. Commit `composer.json` only: `composer.lock`, `vendor/`, `plugins/` and `plugins.lock` are git-ignored.
@@ -395,13 +418,9 @@ namespace Grip\<Site>\Plugin;
 
 use Grip\Vwm\Core\Context;
 use Grip\Vwm\Plugin\AbstractPlugin;
-use Grip\Vwm\Routing\RouteRegistry;
 
 class Plugin extends AbstractPlugin
 {
-
-    /** cms-frontend registers '/*' with the default prio 100; equal patterns resolve to the highest prio */
-    const LEGACY_FRONTEND_ROUTE_PRIO = 200;
 
     /** schema name for site specific tables in the schema manager (Phase 2) */
     const SCHEMA_NAME = '<site>';
@@ -417,9 +436,6 @@ class Plugin extends AbstractPlugin
 
         // branch include/vwm/modules/<MODULE>/ dirs act as exceptions on top of the module plugins
         $eventHooks['Legacy.ModuleConfigProvider.initialized'] = array($this, 'onLegacyModuleConfigProviderInitialized');
-
-        // PHP-template sites only: all front-end requests through the LegacyFrontendActionController
-        $eventHooks['RouteRegistry.initialize'] = array($this, 'onRouteRegistryInitialize');
 
         // Phase 2: site specific database updates through the schema manager
         // $eventHooks['SchemaUpdateRegistry.initialize'] = array($this, 'onSchemaUpdateRegistryInitialize');
@@ -453,19 +469,6 @@ class Plugin extends AbstractPlugin
     }
 
     /**
-     * @param RouteRegistry $routeRegistry
-     */
-    public function onRouteRegistryInitialize($routeRegistry)
-    {
-        $routeRegistry->registerRoute(
-            'legacyFrontend',
-            '/*',
-            'Grip\\Vwm\\LegacySite\\Controller\\LegacyFrontendActionController',
-            self::LEGACY_FRONTEND_ROUTE_PRIO
-        );
-    }
-
-    /**
      * @param \Grip\Vwm\SchemaManager\SchemaUpdateRegistry $schemaUpdateRegistry
      */
     public function onSchemaUpdateRegistryInitialize($schemaUpdateRegistry)
@@ -488,7 +491,9 @@ Register it in `vwm_config.xml`:
 After `composer update`, check that `plugins.lock` contains the plugin. If it does not, add it by hand:
 `"<site>":{"class":"Grip\\<Site>\\Plugin\\Plugin"}`. The Composer classloader can be cached stubbornly; restarting PHP-FPM fixes that.
 
-When the site has been converted to Twig templates later, remove the `RouteRegistry.initialize` hook.
+The site plugin does **not** route the front-end: that is done by `grip/egrip-plugin-legacy-frontend` (1.1).
+Do not register your own `'/*'` route for the `LegacyFrontendActionController` as well. A separate route with a
+higher prio would always win, and the `frontend_controller` exceptions would no longer work.
 
 ### 3.12 vwm_config.xml
 Make sure the new framework is activated:
@@ -560,6 +565,8 @@ Existing databases already contain the structure, so the schema plugin updates m
 * Every panel and panel icon (standard and custom) exists and has a title.
 * Per module: one standard action, one custom action, and one action with deviating configuration. In particular,
   every entity/tab with `mode="merge"` (1.3) shows the standard fields **plus** the exceptions, in the right order.
+* Front-end pages are rendered with the old style, through the `LegacyFrontendActionController`
+  (`egrip-plugin-legacy-frontend` installed and in `plugins.lock`), and the `frontend_controller` exceptions, if any, work.
 * Front-end: home page, deep pages, every custom front-end action (login, password flows, accounts, forms,
   payments), mailing view in the browser (`?module=ML&action=ViewMailingHTML`), RSS/XML and PDF output, search,
   `/robots.txt`, `/images/cached/...`, `/images/uploads/...`, `/assets/...`, `/files/file.php5?...`, `/mc.php`.
@@ -574,7 +581,8 @@ Existing databases already contain the structure, so the schema plugin updates m
 | Cleanup against egrip3 HEAD instead of the matching tag | fewer files recognised as standard | use the matching tag |
 | Stale stock copies survive the cleanup | old code shadows the 4.0 standard | `classify-remaining.php` (2.4), delete `STOCK` |
 | Case-only differences (`Mail_mime`) | file looks customised | treat as stock |
-| Expecting `vwm-legacy-site` to route the front-end | a PHP-template site is rendered by the Twig `FrontendActionController` | `'/*'` route with prio > 100 in the site plugin |
+| Expecting `vwm-legacy-site` to route the front-end | a PHP-template site is rendered by the Twig `FrontendActionController` | require `grip/egrip-plugin-legacy-frontend` |
+| Own `'/*'` route in the site plugin next to `egrip-plugin-legacy-frontend` | `frontend_controller` exceptions are ignored | remove the own route |
 | Merge nodes read by an old VWM | forms/tabs show only the delta | run on `pear-vwm` from `vendor/` only (3.8, 3.10) |
 | Physical legacy scripts in `html/` | bypass the dispatcher, load PEAR from the include_path | delete |
 | `require_once 'VWM/...'`, `'DI/...'` in code or style | fatal errors or mixed library versions | remove, rely on classmap autoloading |
