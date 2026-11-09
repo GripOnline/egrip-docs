@@ -1,11 +1,11 @@
-# Upgrading an e-Grip 3.x client branch to e-Grip 4.0
+# Upgrading an e-Grip 3.x client branch to e-Grip 4
 
-This document describes how to upgrade an existing e-Grip 3.x client branch to e-Grip 4.0 while keeping as much
+This document describes how to upgrade an existing e-Grip 3.x client branch to e-Grip 4 while keeping as much
 of the configuration and code as possible in the platform plugins and libraries. It is written for developers
 and as working instructions for AI coding agents.
 
 Moving `include/vwm/modules` to `config/modules` and converting PHP templates to Twig are **out of scope**:
-both can be done later, after the site runs on 4.0. Until then the PHP templates of the site's style keep working
+both can be done later, after the site runs on e-Grip 4. Until then the PHP templates of the site's style keep working
 through `grip/egrip-plugin-legacy-frontend` (1.1).
 
 Placeholders: `<site>` (lowercase site name, e.g. used in `egrip-<site>`), `<Site>` (PHP namespace segment),
@@ -18,24 +18,30 @@ Placeholders: `<site>` (lowercase site name, e.g. used in `egrip-<site>`), `<Sit
 Give the agent access to the client branch (`egrip-<site>`), its style package (`egrip-style-<site>`), the
 `egrip3` and `egrip4` reference repositories, and this package. Then use prompts like:
 
-> Read `vendor/grip/egrip-docs/docs/upgrade-egrip3-to-egrip4.md`. Do **Phase 0 (analysis)** for
+> Read `vendor/grip/egrip-docs/docs/upgrade-egrip3-to-egrip4.md`. Do the **analysis (section 2)** for
 > `egrip-<site>` and write the resulting plan to a Markdown file in the client repository (or another internal
 > location). Do not modify the client branch yet.
 
 and, after the plan has been reviewed:
 
-> Execute Phase 1 of the plan on branch `<upgrade-branch>`. Stop at every step marked **[HUMAN]** and tell me
+> Execute section 3 of the plan on branch `<upgrade-branch>`. Stop at every step marked **[HUMAN]** and tell me
 > what I need to do.
 
 Steps marked **[HUMAN]** need a running site, a database, a server or a decision. An agent without those
 cannot perform them.
 
-The upgrade happens in two phases:
+The upgrade is done in **one step**: the client branch goes directly from its 3.x version to e-Grip 4. There is
+no intermediate 3.x release. Two one-time scripts, written by the agent for the specific branch, make that possible:
 
-1. **Phase 1:** a stripped-down release that is still 3.x: plugins and dispatcher in place, redundant
-   code removed, schema plugins pinned to the 3.x version of the branch. It goes to test and production first.
-2. **Phase 2:** the actual 4.0 upgrade: schema plugins unpinned, version 4.0, database updates through the
-   schema manager.
+* **`sql/upgrade-4.sql`** brings the database from the state of the 3.x branch to the state the e-Grip 4 schema
+  manager expects: it executes the 3.x (and older) schema updates that are still missing and registers all updates
+  that are already present in table `vwm_schema_update`. After it has run, the schema manager only shows the
+  e-Grip 4 updates as open (2.6, 3.16).
+* **`script/upgrade-4-remove-files.sh`** removes the files that the upgrade deleted from the repository from the
+  servers as well; unpacking a release only adds and overwrites files (2.7, 3.17).
+
+The agent determines the content of both scripts from the code, the update files of the schema plugins and a
+structure dump of the database. Nobody has to execute queries on an empty database or collect queries by hand.
 
 ---
 
@@ -153,10 +159,10 @@ Consequences:
   recent `grip/pear-vwm` (verified in 1.87.2). An **older VWM that does not know `mode="merge"`
   will presumably read the delta as the complete definition** (for instance a form that only shows one
   field). Therefore the cleaned-up branch must always run on the `pear-vwm` from `vendor/`, never on a PEAR
-  installation from the server include_path. Phase 1 must not go live with the old front controller (see 3.8 and 3.10).
+  installation from the server include_path. The upgraded branch must not go live with the old front controller (see 3.8 and 3.10).
 * `actions.xml`, language files and `dataobjects.ini` have no merge mode. Nodes and keys that are identical to
   the standard are removed and the rest is kept as is.
-* Review every `mode="merge"` node, and test each affected form or tab (section 5).
+* Review every `mode="merge"` node, and test each affected form or tab (section 4).
 
 ### 1.4 dataobjects.ini precedence
 
@@ -167,33 +173,55 @@ modules can define their tables in the DataObject class itself (`table()` / `key
 
 ### 1.5 Composer constraints
 
-* `"3.7"` in Composer means **exactly 3.7.0**, not "the latest 3.7". Always use `"3.7.*"` for pinned schema
-  plugins. (`egrip-plugin-cms-schema` 3.7.0 contains no `dataobjects.ini` or `updates.xml`.)
-* Pinned schema plugin versions for Phase 1, by the version of the client branch:
-
-  | Plugin | 3.7.x / 3.8.x | 3.9.x | 3.10.x |
-  |---|---|---|---|
-  | `grip/egrip-plugin-bb-schema` | `3.7.*` | `3.7.*` | `3.7.*` |
-  | `grip/egrip-plugin-cms-schema` | `3.7.*` | `3.9.*` | `3.10.*` |
-  | `grip/egrip-plugin-geo-schema` | `3.7.*` | `3.7.*` | `3.7.*` |
-  | `grip/egrip-plugin-ml-schema` | `3.7.*` | `3.7.*` | `3.10.*` |
-  | `grip/egrip-plugin-shop-schema` (if SHOP is used) | `3.7.*` | `3.7.*` | `3.7.*` |
-  | `grip/egrip-plugin-vwm-schema` | `3.7.*` | `3.7.*` | `3.7.*` |
-  | `grip/egrip-plugin-wst-schema` | `3.7.*` | `3.7.*` | `3.7.*` |
-
-* Module plugins (`grip/egrip-plugin-*-module`) always use `"*"`. They pull in the `grip/pear-*` libraries they need.
-* `grip/pear-shop`, `grip/pear-tcpdf` and `grip/pear-al` are not pulled in by the standard 4.0 set. Require them
+* All plugins, including the schema plugins (`grip/egrip-plugin-*-schema`), use `"*"`. The schema plugins are
+  not pinned to a 3.x version: their `updates.xml` contains the complete history of the schema (tagged
+  `<MODULE> e-Grip <version>`, from 1.0 onwards), which is the input for the one-time database script (2.6).
+* Module plugins (`grip/egrip-plugin-*-module`) pull in the `grip/pear-*` libraries they need.
+* `grip/pear-shop`, `grip/pear-tcpdf` and `grip/pear-al` are not pulled in by the standard e-Grip 4 set. Require them
   explicitly if the site uses SHOP or PDF output. For SHOP, also require `grip/egrip-plugin-shop-module` and
   `grip/egrip-plugin-shop-schema`.
 * `grip/egrip-style-default_clean` (the demo style of the egrip4 project) is **not** required by client branches.
 * `grip/egrip-plugin-legacy-frontend` (`"*"`) is required by every site that still has PHP templates (1.1). It is not
   in the egrip4 project's `composer.json`, because that project uses Twig.
 
+### 1.6 The schema manager
+
+Verified against `grip/vwm-schemamanager` 1.0.6:
+
+* Every schema plugin (and the site plugin, 3.13) registers an `updates.xml` on `SchemaUpdateRegistry.initialize`
+  (format: [database-updates.md](developers-guide/database-updates.md)).
+* An update counts as executed when its `id` is in column `update_id` of table `vwm_schema_update`. Nothing else is
+  checked: the schema manager does not look at the actual structure of the database.
+* The table is created with:
+
+  ```sql
+  CREATE TABLE IF NOT EXISTS `vwm_schema_update` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `update_id` varchar(255) NOT NULL,
+    `tag` varchar(255) DEFAULT NULL,
+    `datetime_executed` datetime DEFAULT NULL,
+    `datetime_created` datetime NOT NULL,
+    `datetime_modified` datetime NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `update_id` (`update_id`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8
+  ```
+
+* After executing the queries of an update, the schema manager registers it with
+  `INSERT INTO vwm_schema_update (update_id, tag, datetime_executed, datetime_created, datetime_modified) VALUES ('<id>', '<tag>', NOW(), NOW(), NOW())`.
+  The one-time script (2.6) writes the same rows, as `INSERT IGNORE` so that a row that already exists is left alone.
+
+A 3.x database usually has no `vwm_schema_update` table (3.x updates were applied by hand from `sql/updates.sql`).
+Without that table the schema manager would offer **every** update since 1.0 as open, which would fail on
+an existing database. That is what the one-time script prevents.
+
 ---
 
-## 2. Phase 0: analysis (no changes to the client branch)
+## 2. Analysis (no changes to the client branch)
 
 The result of this phase is a plan in the client repository (or another internal location, **not** in this package).
+The plan contains everything needed for the upgrade of that specific branch, including the complete one-time
+database script and the list of files to remove from the servers.
 
 ### 2.1 Set up the workspace
 
@@ -330,11 +358,192 @@ grep -rnE "(require|include)(_once)?\s*\(?\s*['\"][A-Z][A-Za-z_]*/" .
 grep -rn "VWM_ModuleConfig::load(" .
 ```
 
-### 2.6 Decide and write the plan
+### 2.6 Database: classify every schema update
 
-The plan contains: facts, target `composer.json`, modules to remove, files to delete (STOCK and html), code fixes
-per file, merge nodes to review, the site plugin, open decisions (**[HUMAN]**), risks and a test list. Validate the
-target composer.json with a dry run:
+Inputs:
+
+* The update files of the installed e-Grip 4 schema plugins: `plugins/*-schema/config/updates.xml`. Include
+  `shop-schema` when the site uses SHOP.
+* The branch version (2.2).
+* **[HUMAN]** a structure-only dump of the production database, and the contents of `vwm_schema_update` if that
+  table already exists. Structure only: no content and no personal data. Give it to the agent; do not commit it
+  to a public repository.
+
+  ```bash
+  mysqldump --no-data --skip-triggers <database> > <site>-structure.sql
+  ```
+
+  ```bash
+  mysqldump --no-create-info <database> vwm_schema_update > <site>-schema-update.sql
+  ```
+
+* The branch's own `sql/updates.sql` (the updates that were applied by hand), and the changes in `sql/updates.sql`
+  of `egrip3` between the tag that matches the branch version and the last 3.x tag (if that file exists in `egrip3`).
+
+Give every update in the update files one of these actions:
+
+| Action | When | In the one-time script |
+|---|---|---|
+| `register` | The result of the update is already in the database: the table, column or index exists in the structure dump with the same definition, or the update id is already in `vwm_schema_update`. For an update that only changes data (`INSERT`, `UPDATE`, `DELETE`): its tag version is not higher than the branch version, or the query is in the branch's `sql/updates.sql`. | `INSERT IGNORE INTO vwm_schema_update ...` only |
+| `execute` | A 3.x (or older) update whose result is missing in the database. This includes tables of a module the site never used: they are created, so later updates that change them do not fail. | the queries of the update, then the `INSERT IGNORE` |
+| `open` | A 4.x update whose result is missing. | nothing; the schema manager executes it after the deploy (3.19) |
+
+Special cases, to be listed in the plan:
+
+* **Partly applied update** (for example one of two columns exists): put the missing queries in the script as
+  separate queries, and the update itself as `register`. Mark it for review.
+* **A difference in definition** (column type, default, index) between the dump and the update: decide per case.
+  Usually `register`, unless the 4.x code depends on the difference. Mark it for review.
+* **Queries in `egrip3` `sql/updates.sql` that are not in any `updates.xml`** (not verified whether this occurs):
+  add them to the script as separate queries, with a comment, if their result is missing.
+* **Site-specific tables** (custom modules, custom tables of standard modules): their existing structure becomes the
+  first update of the site's `config/updates.xml` (3.13), with action `register`.
+
+The following script lists the updates and writes the one-time SQL script from the classification. Save it outside the
+client repository, e.g. as `/tmp/upgrade-sql.php`. `list` writes one line per update with action `?`. Replace every
+`?` with `register`, `execute` or `open` (text after `#` is a comment); `sql` refuses to run while an update is
+unclassified or an id is unknown.
+
+```php
+<?php
+// php upgrade-sql.php list <updates.xml> [<updates.xml> ...] > updates.txt
+// php upgrade-sql.php sql updates.txt <updates.xml> [<updates.xml> ...] > sql/upgrade-4.sql
+// updates.txt: one line per update, "<id> <register|execute|open> # comment"
+
+function loadUpdates(array $files)
+{
+    $updates = array();
+    foreach ($files as $file) {
+        $doc = new DOMDocument();
+        if (!$doc->load($file)) {
+            fwrite(STDERR, "cannot read $file\n");
+            exit(1);
+        }
+        foreach ($doc->getElementsByTagName('update') as $node) {
+            $queries = array();
+            foreach ($node->getElementsByTagName('query') as $queryNode) {
+                if (trim($queryNode->nodeValue) != '') {
+                    $queries[] = trim($queryNode->nodeValue);
+                }
+            }
+            $updates[$node->getAttribute('id')] = array(
+                'file' => $file,
+                'tag' => $node->getAttribute('tag'),
+                'queries' => $queries,
+            );
+        }
+    }
+    return $updates;
+}
+
+$mode = isset($argv[1]) ? $argv[1] : '';
+
+if ($mode == 'list' && $argc > 2) {
+    foreach (loadUpdates(array_slice($argv, 2)) as $id => $update) {
+        $firstQuery = preg_replace('/\s+/', ' ', isset($update['queries'][0]) ? $update['queries'][0] : '');
+        echo $id . ' ? # ' . $update['tag'] . ' | ' . basename(dirname(dirname($update['file']))) . ' | '
+            . substr($firstQuery, 0, 80) . "\n";
+    }
+    exit(0);
+}
+
+if ($mode != 'sql' || $argc < 4) {
+    fwrite(STDERR, "usage: php upgrade-sql.php list <updates.xml>...\n       php upgrade-sql.php sql <updates.txt> <updates.xml>...\n");
+    exit(1);
+}
+
+$updates = loadUpdates(array_slice($argv, 3));
+$actions = array();
+foreach (file($argv[2]) as $line) {
+    $line = trim(preg_replace('/#.*$/', '', $line));
+    if ($line != '') {
+        list($id, $action) = preg_split('/\s+/', $line);
+        $actions[$id] = $action;
+    }
+}
+
+$errors = array();
+foreach ($updates as $id => $update) {
+    if (!isset($actions[$id]) || !in_array($actions[$id], array('register', 'execute', 'open'))) {
+        $errors[] = "not classified: $id ({$update['tag']})";
+    }
+}
+foreach ($actions as $id => $action) {
+    if (!isset($updates[$id])) {
+        $errors[] = "unknown update id: $id";
+    }
+}
+if ($errors) {
+    fwrite(STDERR, implode("\n", $errors) . "\n");
+    exit(1);
+}
+
+echo "-- One-time e-Grip 4 upgrade script. Run once, before using the schema manager.\n\n";
+echo "CREATE TABLE IF NOT EXISTS `vwm_schema_update` (\n"
+    . "  `id` int(11) NOT NULL AUTO_INCREMENT,\n"
+    . "  `update_id` varchar(255) NOT NULL,\n"
+    . "  `tag` varchar(255) DEFAULT NULL,\n"
+    . "  `datetime_executed` datetime DEFAULT NULL,\n"
+    . "  `datetime_created` datetime NOT NULL,\n"
+    . "  `datetime_modified` datetime NOT NULL,\n"
+    . "  PRIMARY KEY (`id`),\n"
+    . "  UNIQUE KEY `update_id` (`update_id`)\n"
+    . ") ENGINE=InnoDB DEFAULT CHARSET=utf8;\n";
+
+foreach ($updates as $id => $update) {
+    if ($actions[$id] == 'open') {
+        continue;
+    }
+    echo "\n-- " . $actions[$id] . ': ' . $update['tag'] . "\n";
+    if ($actions[$id] == 'execute') {
+        foreach ($update['queries'] as $query) {
+            echo $query . ";\n";
+        }
+    }
+    echo "INSERT IGNORE INTO vwm_schema_update (update_id, tag, datetime_executed, datetime_created, datetime_modified) VALUES ('"
+        . addslashes($id) . "', '" . addslashes($update['tag']) . "', NOW(), NOW(), NOW());\n";
+}
+```
+
+```bash
+php /tmp/upgrade-sql.php list plugins/*-schema/config/updates.xml > /tmp/updates.txt
+```
+
+```bash
+php /tmp/upgrade-sql.php sql /tmp/updates.txt plugins/*-schema/config/updates.xml > sql/upgrade-4.sql
+```
+
+Pass the same update files in the same order to both commands. Once the site's `config/updates.xml` exists (3.13),
+add it at the end of both. Separate queries for the special cases above are added to the generated file by hand, in a clearly
+commented block, before the `INSERT IGNORE` of the update they belong to. Keep the classification (`updates.txt`,
+with the evidence per update as comment) in the plan.
+
+### 2.7 Files to remove from the servers
+
+Deleting a file in the repository does not delete it on test and production: a release only adds and overwrites
+files. Left behind, old module files shadow the standard implementation (1.2, 2.4) and old html scripts bypass the
+dispatcher (1.1). The plan therefore contains the list of files and directories to remove, based on the dry run
+(2.3 to 2.5): directories that disappear completely (unused modules, module subdirs without exceptions) and the
+remaining individual files. The final script is generated from the upgrade branch in 3.17.
+
+Rules for the script:
+
+* It only removes paths that the upgrade branch **no longer contains**. It is therefore safe to run both before and
+  after unpacking the release, and it can be shipped in the release.
+* Directories are removed as a whole only under `include/`, and only when the upgrade branch has no file left in
+  them. Under `html/` it removes individual files only: directories such as `html/images/` and `html/files/` also
+  hold uploaded and cached files that are not in the repository.
+* **[HUMAN]** (optional) a file list of the application root on production (`find include html script -type f`).
+  Files on the server that were never in the repository (left over from earlier manual deploys) are listed in the plan
+  as a decision. Under directories that are removed as a whole they disappear anyway.
+
+### 2.8 Decide and write the plan
+
+The plan contains: facts, target `composer.json`, modules to remove, files to delete in the branch (STOCK and html),
+code fixes per file, merge nodes to review, the site plugin, the site schema (`config/updates.xml`), the
+**classification of every schema update with the one-time script** (2.6), the **files and directories to remove from
+the servers** (2.7), open decisions (**[HUMAN]**), risks and a test list. Validate the target composer.json with a
+dry run:
 
 ```bash
 composer update --dry-run --no-interaction --ignore-platform-reqs
@@ -342,16 +551,17 @@ composer update --dry-run --no-interaction --ignore-platform-reqs
 
 ---
 
-## 3. Phase 1: stripped 3.x release (on an upgrade branch)
+## 3. Execution (on an upgrade branch)
 
 Commit after every step, so each step can be reviewed and reverted on its own.
 
 ### 3.1 Upgrade branch
-Create the branch from `main` (e.g. `upgrade-4.0`). Production hotfixes remain possible on `main`.
+Create the branch from `main` (e.g. `upgrade-4`). Production hotfixes remain possible on `main`; merge them into the
+upgrade branch, and check whether they add or remove files (3.17) or database updates (3.16).
 
 ### 3.2 composer.json
 * Require all plugins from the egrip4 project's `composer.json`, except `grip/egrip-style-default_clean`.
-* Module plugins `"*"`, schema plugins pinned with `.*` (table in 1.5).
+* All plugins `"*"`, including the schema plugins (1.5).
 * Add `grip/egrip-plugin-legacy-frontend` when the site's style uses PHP templates (1.1). Without it the
   front-end is rendered by the Twig `FrontendActionController`, which does not know the old style.
 * Remove `grip/pear-*` requires that are pulled in anyway. Add the ones that are not (`pear-shop`, `pear-tcpdf`) when the site uses them.
@@ -361,7 +571,7 @@ Create the branch from `main` (e.g. `upgrade-4.0`). Production hotfixes remain p
 ### 3.3 Remove unused modules
 Modules such as AL, AW, CRM and SMS are rarely used and do not exist in 4.0. Delete the module dir in
 `include/vwm/modules/` and the `<module>` line in `vwm_config.xml`.
-**[HUMAN]** confirm in the database that they are unused. Drop their tables once the stripped 3.x release is live.
+**[HUMAN]** confirm in the database that they are unused. Drop their tables after the upgrade is live (3.19).
 
 ### 3.4 Run the cleanup script
 Against the matching egrip3 tag (2.3).
@@ -422,7 +632,7 @@ use Grip\Vwm\Plugin\AbstractPlugin;
 class Plugin extends AbstractPlugin
 {
 
-    /** schema name for site specific tables in the schema manager (Phase 2) */
+    /** schema name for site specific tables in the schema manager (3.13) */
     const SCHEMA_NAME = '<site>';
 
     /** @var Context */
@@ -437,8 +647,8 @@ class Plugin extends AbstractPlugin
         // branch include/vwm/modules/<MODULE>/ dirs act as exceptions on top of the module plugins
         $eventHooks['Legacy.ModuleConfigProvider.initialized'] = array($this, 'onLegacyModuleConfigProviderInitialized');
 
-        // Phase 2: site specific database updates through the schema manager
-        // $eventHooks['SchemaUpdateRegistry.initialize'] = array($this, 'onSchemaUpdateRegistryInitialize');
+        // site specific database updates through the schema manager (config/updates.xml)
+        $eventHooks['SchemaUpdateRegistry.initialize'] = array($this, 'onSchemaUpdateRegistryInitialize');
 
         return $eventHooks;
     }
@@ -502,10 +712,29 @@ Make sure the new framework is activated:
 <param name="context_factory_class" value="Grip\Vwm\Core\DefaultContextFactory"/>
 ```
 
-### 3.13 Build
-Make sure the release zip contains `src/` (site plugin) next to `html/`, `include/`, `script/` and `sql/`.
+Set `version` in `<vwm version="...">` to the e-Grip 4 version of the release.
 
-### 3.14 Style package
+### 3.13 Site schema updates
+From now on all database changes, including those to site-specific tables, go through the schema manager.
+Create `config/updates.xml` with the existing state of the site-specific tables as the first update (2.6), and keep
+the `SchemaUpdateRegistry.initialize` hook of the site plugin (3.11) enabled. Format:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<updates>
+  <update id="<yyyymmddhhmmss>.<unique-hash>" tag="<site> 4.0">
+    <query>CREATE TABLE IF NOT EXISTS ...</query>
+  </update>
+</updates>
+```
+
+Use `CREATE TABLE IF NOT EXISTS`, so that the update also works on a new database. The branch's
+`sql/updates.sql` is no longer used for new changes; keep it as history.
+
+### 3.14 Build
+Make sure the release zip contains `src/` (site plugin) and `config/` next to `html/`, `include/`, `script/` and `sql/`.
+
+### 3.15 Style package
 Apply 3.7 and 3.8 to the templates. Decide how it is deployed. The preferred option is a Composer package of type
 `egrip-style` named `grip/egrip-style-<site>`, which the installer plugin puts in `plugins/styles/<site>`:
 
@@ -518,45 +747,90 @@ Apply 3.7 and 3.8 to the templates. Decide how it is deployed. The preferred opt
 }
 ```
 
-### 3.15 Local test [HUMAN]
-See section 5.
+### 3.16 One-time database script
+Generate `sql/upgrade-4.sql` from the classification in the plan (2.6), with the update files of the plugins as
+installed by 3.2 and the site's `config/updates.xml` (3.13). Check that:
 
-### 3.16 Register existing database updates [HUMAN]
-Existing databases already contain the structure, so the schema plugin updates must be registered, not executed:
+* the script starts with the `CREATE TABLE IF NOT EXISTS vwm_schema_update` query,
+* every update of every update file is classified, and `sql` ran without errors,
+* every `execute` update whose `requires` refers to another `execute` update comes after that update in the script,
+* the separate queries for the special cases (2.6) are in the script and commented.
 
-1. Open `/vwm/schemaManager/` and check that the updates of all schema plugins are listed.
-2. Point the `database` param in `vwm_config.xml` temporarily to an **empty** database, open
-   `/vwm/schemaManager/` and apply all updates there.
-3. Dump table `vwm_schema_update` (structure + data) into the project. If the branch already has a historic
-   `sql/updates.sql`, use a different name, e.g. `sql/schema-manager-baseline.sql`.
-4. Point `database` back to the real database. The schema manager now shows open updates.
-5. Apply only the baseline SQL (e.g. with phpMyAdmin). The schema manager must now show no open updates.
+Regenerate the script when the plugins are updated before the release: a new update in a schema plugin is
+`open` unless the plan says otherwise.
 
-### 3.17 Release within 3.x and roll out [HUMAN]
-* Merge the upgrade branch and make a last 3.x release.
-* **Test:** copy the production database. Remove the `include/` dir before unzipping (many files were deleted).
-  Run `composer update`. Apply **only** the baseline SQL, then check that the schema manager shows no open updates.
-* **Production:** the same, after a database backup.
+### 3.17 File removal script
+Generate `script/upgrade-4-remove-files.sh` from the difference between `main` and the upgrade branch, after all
+deletions have been committed (2.7). Save the generator outside the client repository, e.g. as
+`/tmp/make-remove-script.sh`, and run it in the client repository:
 
-## 4. Phase 2: e-Grip 4.0
+```sh
+#!/bin/sh
+# usage (in the client repository): sh make-remove-script.sh <base> <upgrade-branch> > script/upgrade-4-remove-files.sh
+set -eu
+BASE=$1
+BRANCH=$2
+TMP=$(mktemp -d)
+git diff --name-only --no-renames --diff-filter=D "$BASE" "$BRANCH" > "$TMP/deleted"
+# dirs under include/ in which the upgrade branch has no file left: removed as a whole
+while IFS= read -r f; do
+    d=$(dirname "$f")
+    while [ "$d" != "." ]; do echo "$d"; d=$(dirname "$d"); done
+done < "$TMP/deleted" | grep '^include/.' | sort -u | while IFS= read -r d; do
+    if [ -z "$(git ls-tree -r --name-only "$BRANCH" -- "$d/")" ]; then echo "$d"; fi
+done > "$TMP/dirs"
+{
+    # topmost of those dirs, then the deleted files that are not inside one of them
+    awk '{ for (i in top) if (index($0, top[i] "/") == 1) next; top[NR] = $0; print }' "$TMP/dirs"
+    awk 'NR == FNR { top[NR] = $0; next } { for (i in top) if (index($0, top[i] "/") == 1) next; print }' "$TMP/dirs" "$TMP/deleted"
+} | sed "s/'/'\\\\''/g; s/^/rm_path '/; s/\$/'/" > "$TMP/body"
+cat <<HEAD
+#!/bin/sh
+# One-time removal of the files deleted by the e-Grip 4 upgrade ($BASE -> $BRANCH).
+# Only removes paths that the upgrade branch no longer contains. Use --dry-run first.
+# usage: sh script/upgrade-4-remove-files.sh <application root> [--dry-run]
+set -eu
+cd "\$1"
+[ -f vwm_config.xml ] || { echo "\$1 is not an e-Grip application root" >&2; exit 1; }
+DRY=\${2:-}
+rm_path() {
+    [ -e "\$1" ] || return 0
+    if [ "\$DRY" = "--dry-run" ]; then echo "remove \$1"; else rm -rf -- "\$1"; fi
+}
+HEAD
+cat "$TMP/body"
+rm -rf "$TMP"
+```
 
-1. Set all schema plugins to `"*"` in `composer.json` (`bb`, `cms`, `geo`, `ml`, `shop` when used, `vwm`, `wst`).
-2. Set `version="4.0..."` in `vwm_config.xml`.
-3. From now on all database changes, including those to site-specific tables, go through the schema manager.
-   Create `config/updates.xml` for the site tables and enable the `SchemaUpdateRegistry.initialize` hook in the
-   site plugin. Register the first update (the existing state) as applied on existing databases. Format:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <updates>
-     <update id="<yyyymmddhhmmss>.<unique-hash>" tag="<site> 4.0">
-       <query>CREATE TABLE ...</query>
-     </update>
-   </updates>
-   ```
-4. **[HUMAN]** deploy to test → `composer update` → apply the updates via `/vwm/schemaManager/` → deploy to
-   production → apply the updates → tag the release on `main`.
+```bash
+sh /tmp/make-remove-script.sh main upgrade-4 > script/upgrade-4-remove-files.sh
+```
 
-## 5. Test checklist [HUMAN]
+The generated script contains one `rm_path '<path>'` line per directory or file. Compare it with the list in the plan
+and add the decided server-only leftovers (2.7) by hand. Regenerate it after merging hotfixes from `main` (3.1).
+
+### 3.18 Local test [HUMAN]
+On a copy of the production database: run `sql/upgrade-4.sql`, open `/vwm/schemaManager/` and check that exactly the
+`open` updates of the plan are listed. Apply them there, then test (section 4). If an `execute` query fails, or the
+schema manager lists an update that should not be open, fix the classification, regenerate the script and start
+again from a fresh copy.
+
+### 3.19 Roll out [HUMAN]
+Merge the upgrade branch into `main` and make the e-Grip 4 release. On **test** (with a fresh copy of the
+production database) and then on **production** (after a backup of the database and the files):
+
+1. Unpack the release and run `composer update` (or deploy the build that contains `vendor/` and `plugins/`).
+2. `sh script/upgrade-4-remove-files.sh <application root> --dry-run`, check the output, then run it without
+   `--dry-run`.
+3. Run `sql/upgrade-4.sql` once (e.g. with the `mysql` client or phpMyAdmin).
+4. Open `/vwm/schemaManager/`: only the `open` updates of the plan are listed. Apply them.
+5. Reload PHP-FPM (the database ini and the classloader are cached) and run the test checklist (section 4).
+6. **[HUMAN]** update the cron jobs on the server (3.10). Tag the release on `main`.
+
+Drop the tables of removed modules (3.3) in a later release, through `config/updates.xml`. Remove the two one-time
+scripts from the branch once production runs on e-Grip 4.
+
+## 4. Test checklist [HUMAN]
 
 * `/vwm/` loads and shows the database update notice; if that notice is missing, the
   `egrip-plugin-vwm-schemamanager` dependency is missing. A white page or out-of-memory error points to a
@@ -573,11 +847,14 @@ Existing databases already contain the structure, so the schema plugin updates m
 * Console: `php script/run.php -m <MODULE> -a <Action>` for every cron job.
 * The PHP error log is clean, including PHP 8.x deprecations.
 
-## 6. Pitfalls
+## 5. Pitfalls
 
 | Pitfall | Effect | Fix |
 |---|---|---|
-| Composer constraint `"3.7"` | installs exactly 3.7.0 (cms-schema 3.7.0 has no `dataobjects.ini`/`updates.xml`) | use `"3.7.*"` |
+| No `vwm_schema_update` table on a 3.x database | the schema manager offers every update since 1.0; executing them fails | run `sql/upgrade-4.sql` first (2.6, 3.16) |
+| Update classified `register` while its result is missing | later code or updates fail on a missing table or column | classify against the structure dump, not only by tag version (2.6) |
+| Deleted files left on the server | old module files shadow the standard, old html scripts bypass the dispatcher | `script/upgrade-4-remove-files.sh` (2.7, 3.17) |
+| Removing whole directories under `html/` | uploaded and cached files are lost | the removal script only removes whole directories under `include/` (2.7) |
 | Cleanup against egrip3 HEAD instead of the matching tag | fewer files recognised as standard | use the matching tag |
 | Stale stock copies survive the cleanup | old code shadows the 4.0 standard | `classify-remaining.php` (2.4), delete `STOCK` |
 | Case-only differences (`Mail_mime`) | file looks customised | treat as stock |
@@ -586,6 +863,6 @@ Existing databases already contain the structure, so the schema plugin updates m
 | Merge nodes read by an old VWM | forms/tabs show only the delta | run on `pear-vwm` from `vendor/` only (3.8, 3.10) |
 | Physical legacy scripts in `html/` | bypass the dispatcher, load PEAR from the include_path | delete |
 | `require_once 'VWM/...'`, `'DI/...'` in code or style | fatal errors or mixed library versions | remove, rely on classmap autoloading |
-| `src/` missing from the release zip | site plugin missing on test/production | add it to the build |
+| `src/` or `config/` missing from the release zip | site plugin or site schema missing on test/production | add them to the build (3.14) |
 | `plugins.lock` not updated for a new plugin | plugin not loaded | add the entry by hand |
 | `COMPOSER_ALLOW_SUPERUSER` not set in a root container | installer plugin skipped, empty `plugins/` | set it |

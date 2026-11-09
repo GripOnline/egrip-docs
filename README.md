@@ -8,7 +8,7 @@ client implementation can carry an up-to-date copy of the docs as a (dev) depend
 
 | Document | Description |
 |---|---|
-| [docs/upgrade-egrip3-to-egrip4.md](docs/upgrade-egrip3-to-egrip4.md) | Upgrading an e-Grip 3.x client branch to e-Grip 4.0 (also usable as instructions for AI coding agents) |
+| [docs/upgrade-egrip3-to-egrip4.md](docs/upgrade-egrip3-to-egrip4.md) | Upgrading an e-Grip 3.x client branch to e-Grip 4 in one step, with one-time scripts for the database and for removing files on the servers (also usable as instructions for AI coding agents) |
 | [docs/developers-guide.md](docs/developers-guide.md) | **Developer's guide** (index of the chapters below): how the e-Grip 4 framework works |
 | [docs/developers-guide/application-framework.md](docs/developers-guide/application-framework.md) | Developer's guide 1: application framework and the `Context` object |
 | [docs/developers-guide/plugins-and-events.md](docs/developers-guide/plugins-and-events.md) | Developer's guide 2: `PluginManager` and `EventDispatcher` |

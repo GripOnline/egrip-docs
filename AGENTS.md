@@ -23,5 +23,5 @@ the Composer package `grip/egrip-docs`.
 
 When this package is installed in a client implementation, the docs are in
 `vendor/grip/egrip-docs/docs/`. Read the document that matches the task (for example
-`upgrade-egrip3-to-egrip4.md` for a 3.x → 4.0 upgrade) before making changes, and follow it.
+`upgrade-egrip3-to-egrip4.md` for a 3.x → 4 upgrade) before making changes, and follow it.
 Write client-specific findings and plans in the client repository, never in this package.

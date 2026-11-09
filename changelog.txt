@@ -2,6 +2,7 @@
  NEXT VERSION
 ---------------------------------------------
 
+- upgrade-egrip3-to-egrip4: upgrade in one step instead of via a stripped 3.x release; the agent classifies every schema update and generates a one-time database script (sql/upgrade-4.sql) that executes the missing 3.x updates and registers the applied ones in vwm_schema_update, plus a script that removes the deleted files from the servers
 - add the e-Grip 4 developer's guide (docs/developers-guide.md and docs/developers-guide/), translated and made generic from the internal guide
 - README: refer to the public egrip-demo implementation, clearer installation and update instructions
 - rename the repository to GripOnline/egrip-docs and the Composer package to grip/egrip-docs (was grip/egrip4-docs); installed copies move to vendor/grip/egrip-docs/docs/
