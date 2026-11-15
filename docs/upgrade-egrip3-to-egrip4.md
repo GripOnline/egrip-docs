@@ -223,6 +223,37 @@ A 3.x database usually has no `vwm_schema_update` table (3.x updates were applie
 Without that table the schema manager would offer **every** update since 1.0 as open, which would fail on
 an existing database. That is what the one-time script prevents.
 
+### 1.7 Web server
+
+The dispatcher only works if the web server sends every request for a path that does not exist as a file to
+`html/index.php`. Check this on every server the site runs on (2.2):
+
+* **Apache** reads the rewrite rules from `html/.htaccess` (`AllowOverride` must allow them).
+* **nginx without Apache** (for example PHP-FPM served directly by nginx, a Plesk option) ignores `.htaccess`. The
+  rewrite has to be configured in nginx, for example in Plesk under *Apache & nginx Settings → Additional nginx
+  directives*:
+
+  ```nginx
+  location / {
+      try_files $uri $uri/ /index.php$is_args$args;
+  }
+  ```
+
+  The dispatcher routes on `REQUEST_URI`, which keeps the original path. The trailing-slash redirect of the
+  standard `.htaccess` (extensionless GET → `/path/`) has no equivalent in this snippet; add an nginx `rewrite` for it
+  if the site's URLs rely on it (CMS page URLs end in a slash).
+* **Server-wide aliases left over from e-Grip 3.** Servers that served the PEAR packages from the include_path
+  often have a global Apache alias for the PEAR data dir, such as `Alias /pear/ "/usr/share/php/data/"`. An alias is
+  applied before `.htaccess` and the dispatcher, so requests for `/pear/*` (the `vwm-legacy-site` routes for the
+  back-end assets `/pear/VWM/assets/*` and `/pear/FCKEditor/*`) never reach e-Grip 4 and are looked up in the old
+  PEAR data dir instead, where the 4.0 asset files do not exist. The back end then loads without CSS and
+  JavaScript. Seen in practice as a `500` with `End of script output before headers: cgi_wrapper` in the Apache
+  error log (Plesk); why the request ends in a `500` instead of a `404` depends on the content of the old data dir
+  and has not been verified. Remedies: remove or restrict the global alias once no e-Grip 3 site on the server needs
+  it, override it for the site (a vhost alias takes precedence over a server-wide one, e.g.
+  `AliasMatch ^/pear/ <application root>/html/index.php`; not verified in production), or serve the site without
+  Apache (nginx and PHP-FPM, see above).
+
 ---
 
 ## 2. Analysis (no changes to the client branch)
@@ -267,6 +298,7 @@ plugins and `vendor/grip/vwm-legacy-site` (cleanup script, legacy controllers, `
 | Front controller | `html/index.php`: legacy bootstrap or dispatcher |
 | Site plugin | `src/`, `plugin[...]` params in `vwm_config.xml` |
 | Cron jobs | server crontab entries that call `script/` |
+| **[HUMAN]** Web server | Apache (`.htaccess`) or nginx only; server-wide aliases for `/pear/` or other e-Grip 4 route prefixes (1.7) |
 
 ### 2.3 Dry-run the cleanup on a copy
 
@@ -835,6 +867,8 @@ production database) and then on **production** (after a backup of the database 
 3. Run `sql/upgrade-4.sql` once (e.g. with the `mysql` client or phpMyAdmin).
 4. Open `/vwm/schemaManager/`: only the `open` updates of the plan are listed. Apply them.
 5. Reload PHP-FPM (the database ini and the classloader are cached) and run the test checklist (section 4).
+   Check that a back-end asset (`/pear/VWM/assets/...`) and a route without a physical file are served by e-Grip 4
+   (1.7).
 6. **[HUMAN]** update the cron jobs on the server (3.10). Tag the release on `main`.
 
 Drop the tables of removed modules (3.3) in a later release, through `config/updates.xml`. Remove the two one-time
@@ -857,6 +891,8 @@ scripts from the branch once production runs on e-Grip 4.
 * Front-end: home page, deep pages, every custom front-end action (login, password flows, accounts, forms,
   payments), mailing view in the browser (`?module=ML&action=ViewMailingHTML`), RSS/XML and PDF output, search,
   `/robots.txt`, `/images/cached/...`, `/images/uploads/...`, `/assets/...`, `/files/file.php5?...`, `/mc.php`.
+* Back end: the assets under `/pear/VWM/assets/...` load (CSS and JavaScript of `/vwm/`), and so do routes without a
+  physical file, such as `/vwm/schemaManager/` (1.7).
 * Console: `php script/run.php -m <MODULE> -a <Action>` for every cron job.
 * The PHP error log is clean, including PHP 8.x deprecations.
 
@@ -880,3 +916,5 @@ scripts from the branch once production runs on e-Grip 4.
 | `src/` or `config/` missing from the release zip | site plugin or site schema missing on test/production | add them to the build (3.14) |
 | `plugins.lock` not updated for a new plugin | plugin not loaded | add the entry by hand |
 | `COMPOSER_ALLOW_SUPERUSER` not set in a root container | installer plugin skipped, empty `plugins/` | set it |
+| Server-wide `Alias /pear/` to the PEAR data dir (e-Grip 3 servers) | `/pear/VWM/assets/*` never reaches e-Grip 4; back end without CSS/JavaScript, `404` or `500` | remove or override the alias, or serve without Apache (1.7) |
+| Site served by nginx without Apache | `.htaccess` is ignored; every route without a physical file gives a `404` | `try_files ... /index.php` in the nginx configuration (1.7) |
