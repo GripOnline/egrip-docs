@@ -2,7 +2,7 @@
     "name": "grip/egrip-docs",
     "description": "Generic e-Grip 4 documentation (Markdown)",
     "type": "library",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "proprietary",
     "require": {}
 }

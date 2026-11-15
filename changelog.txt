@@ -2,6 +2,11 @@
  NEXT VERSION
 ---------------------------------------------
 
+---------------------------------------------
+ Release: egrip4-docs-1.1.0
+ Date:    2026-11-15
+---------------------------------------------
+
 - upgrade-egrip3-to-egrip4: describe the symptom of a leftover VWM dataobjects.ini on the server (/vwm/ works, saving e-Grip 4 records such as access keys fails with "Modifications could not be saved"), check for leftover dataobjects.ini files after the removal script for every deploy method, and add a test for it to the checklist
 - upgrade-egrip3-to-egrip4: new section 1.7 on the web server (rewrites under Apache and nginx, server-wide /pear/ aliases left from e-Grip 3), with checks in the facts, roll-out, test checklist and pitfalls
 - upgrade-egrip3-to-egrip4: upgrade in one step instead of via a stripped 3.x release; the agent classifies every schema update and generates a one-time database script (sql/upgrade-4.sql) that executes the missing 3.x updates and registers the applied ones in vwm_schema_update, plus a script that removes the deleted files from the servers
