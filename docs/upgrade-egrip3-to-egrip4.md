@@ -171,6 +171,14 @@ exists it is used **instead of** the schema plugin file (there is no merge). A s
 new tables and columns of the plugin. Custom tables of a standard module go into the schema plugin. Custom
 modules can define their tables in the DataObject class itself (`table()` / `keys()`).
 
+A stale file does not always break `/vwm/`. A 3.x copy of `include/vwm/modules/VWM/config/dataobjects.ini` still
+defines the tables that the old back-end needs (`vwm_user`, `vwm_group*`, `vwm_session*`, ...), so logging in and
+most screens keep working. Only saving a record in a table that was added in e-Grip 4 fails, for example an access
+key (`vwm_user_accesskey`) or an OAuth client (`vwm_oauth_client`), both from `egrip-plugin-vwm-schema` 4.4.0.
+DB_DataObject reports `No table definition for <table>`, but the form only shows the generic error
+`CouldNotSaveChanges` ("Modifications could not be saved"), and nothing is written to the table. The table itself
+exists and is correct, so the schema manager shows no problem either.
+
 ### 1.5 Composer constraints
 
 * All plugins, including the schema plugins (`grip/egrip-plugin-*-schema`), use `"*"`. The schema plugins are
@@ -821,7 +829,9 @@ production database) and then on **production** (after a backup of the database 
 
 1. Unpack the release and run `composer update` (or deploy the build that contains `vendor/` and `plugins/`).
 2. `sh script/upgrade-4-remove-files.sh <application root> --dry-run`, check the output, then run it without
-   `--dry-run`.
+   `--dry-run`. Then check that `find include/vwm/modules -name 'dataobjects*.ini'` lists files of custom
+   modules only (3.9). This applies to every way of deploying (unpacking a release, `rsync`, a copy, `git pull` of a
+   working copy with untracked files): none of them removes files that were deleted from the repository.
 3. Run `sql/upgrade-4.sql` once (e.g. with the `mysql` client or phpMyAdmin).
 4. Open `/vwm/schemaManager/`: only the `open` updates of the plan are listed. Apply them.
 5. Reload PHP-FPM (the database ini and the classloader are cached) and run the test checklist (section 4).
@@ -836,6 +846,9 @@ scripts from the branch once production runs on e-Grip 4.
   `egrip-plugin-vwm-schemamanager` dependency is missing. A white page or out-of-memory error points to a
   `dataobjects.ini` that is not loaded (vwm-schema) or a leftover branch `dataobjects.ini`. The database ini is
   cached, so reload PHP-FPM after fixing.
+* Save a record in a table added by e-Grip 4: create an access key for yourself
+  (`/vwm/?module=VWM&action=InsertAccessKey`) and delete it again. "Modifications could not be saved" with no row
+  in `vwm_user_accesskey` means a leftover `include/vwm/modules/VWM/config/dataobjects.ini` on the server (1.4).
 * Every panel and panel icon (standard and custom) exists and has a title.
 * Per module: one standard action, one custom action, and one action with deviating configuration. In particular,
   every entity/tab with `mode="merge"` (1.3) shows the standard fields **plus** the exceptions, in the right order.
@@ -854,6 +867,7 @@ scripts from the branch once production runs on e-Grip 4.
 | No `vwm_schema_update` table on a 3.x database | the schema manager offers every update since 1.0; executing them fails | run `sql/upgrade-4.sql` first (2.6, 3.16) |
 | Update classified `register` while its result is missing | later code or updates fail on a missing table or column | classify against the structure dump, not only by tag version (2.6) |
 | Deleted files left on the server | old module files shadow the standard, old html scripts bypass the dispatcher | `script/upgrade-4-remove-files.sh` (2.7, 3.17) |
+| Leftover `include/vwm/modules/VWM/config/dataobjects.ini` on the server | `/vwm/` works, but saving an access key, OAuth client or other e-Grip 4 record fails with "Modifications could not be saved" | remove the directory or file, reload PHP-FPM (1.4, 3.19) |
 | Removing whole directories under `html/` | uploaded and cached files are lost | the removal script only removes whole directories under `include/` (2.7) |
 | Cleanup against egrip3 HEAD instead of the matching tag | fewer files recognised as standard | use the matching tag |
 | Stale stock copies survive the cleanup | old code shadows the 4.0 standard | `classify-remaining.php` (2.4), delete `STOCK` |
