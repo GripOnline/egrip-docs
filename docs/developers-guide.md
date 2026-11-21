@@ -27,7 +27,7 @@ Placeholders: `<site>` (lowercase site name, as in `egrip-<site>`), `<Site>` (PH
 | 5 | [Core services](developers-guide/core-services.md) | Database connections, storage providers, mail, `ServiceRegistry`, `FilterRegistry`, key-value stores |
 | 6 | [CMS engine](developers-guide/cms-engine.md) | `Cms.Engine` service, `ContentTypeRegistry`, Twig templates and custom renderer functions |
 | 7 | [Module exceptions](developers-guide/module-exceptions.md) | Overriding module configuration and texts from a client branch |
-| 8 | [Database updates](developers-guide/database-updates.md) | `updates.xml`, `SchemaUpdateRegistry`, the schema manager |
+| 8 | [Database updates](developers-guide/database-updates.md) | `updates.xml`, `SchemaUpdateRegistry`, the schema manager, update locks and the schema manager API |
 | 9 | [Command line scripts](developers-guide/command-line-scripts.md) | `Command` interface, `CommandRegistry`, `script/run.php` |
 | 10 | [Working on plugins and libraries](developers-guide/working-on-plugins-and-libraries.md) | Symlinking plugins and Composer libraries from a workspace into a client checkout |
 | 11 | [Setting up a new site](developers-guide/new-site.md) | Repository, database and `vwm_config.xml` for a new e-Grip 4 site |
