@@ -2,6 +2,8 @@
  NEXT VERSION
 ---------------------------------------------
 
+- developers-guide/database-updates: describe the lock table vwm_schema_update_lock that makes sure every update is executed by only one process, and the schema manager API (scopes schemaupdates:read and schemaupdates:write)
+
 ---------------------------------------------
  Release: egrip4-docs-1.1.0
  Date:    2026-11-15
